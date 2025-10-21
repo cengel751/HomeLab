@@ -1,0 +1,135 @@
+version: "3.8"
+
+services:
+  # qBittorrent - Torrent Client
+  qbittorrent:
+    image: lscr.io/linuxserver/qbittorrent:latest
+    container_name: qbittorrent
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/New_York
+      - WEBUI_PORT=8080
+    volumes:
+      - /opt/mediaserver/config/qbittorrent:/config
+      - /opt/mediaserver/data/downloads:/downloads
+    ports:
+      - 8080:8080
+      - 6881:6881
+      - 6881:6881/udp
+    restart: unless-stopped
+    networks:
+      - mediaserver
+
+  # Jackett - Indexer Proxy
+  jackett:
+    image: lscr.io/linuxserver/jackett:latest
+    container_name: jackett
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/New_York
+      - AUTO_UPDATE=true
+    volumes:
+      - /opt/mediaserver/config/jackett:/config
+      - /opt/mediaserver/data/downloads:/downloads
+    ports:
+      - 9117:9117
+    restart: unless-stopped
+    networks:
+      - mediaserver
+
+  # Radarr - Movie Management
+  radarr:
+    image: lscr.io/linuxserver/radarr:latest
+    container_name: radarr
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/New_York
+    volumes:
+      - /opt/mediaserver/config/radarr:/config
+      - /opt/mediaserver/data:/data
+    ports:
+      - 7878:7878
+    restart: unless-stopped
+    depends_on:
+      - qbittorrent
+      - jackett
+    networks:
+      - mediaserver
+
+  # Sonarr - TV Show Management
+  sonarr:
+    image: lscr.io/linuxserver/sonarr:latest
+    container_name: sonarr
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/New_York
+    volumes:
+      - /opt/mediaserver/config/sonarr:/config
+      - /opt/mediaserver/data:/data
+    ports:
+      - 8989:8989
+    restart: unless-stopped
+    depends_on:
+      - qbittorrent
+      - jackett
+    networks:
+      - mediaserver
+
+  # Plex Media Server
+  plex:
+    image: lscr.io/linuxserver/plex:latest
+    container_name: plex
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/New_York
+      - VERSION=docker
+      - PLEX_CLAIM=${PLEX_CLAIM}
+    volumes:
+      - /opt/mediaserver/config/plex:/config
+      - /opt/mediaserver/data/movies:/movies
+      - /opt/mediaserver/data/tv:/tv
+    ports:
+      - 32400:32400
+      - 1900:1900/udp
+      - 3005:3005
+      - 5353:5353/udp
+      - 8324:8324
+      - 32410:32410/udp
+      - 32412:32412/udp
+      - 32413:32413/udp
+      - 32414:32414/udp
+      - 32469:32469
+    restart: unless-stopped
+    devices:
+      - /dev/dri:/dev/dri  # For hardware transcoding (Intel/AMD)
+    networks:
+      - mediaserver
+
+  # Overseerr - Request Management (Optional)
+  overseerr:
+    image: lscr.io/linuxserver/overseerr:latest
+    container_name: overseerr
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/New_York
+    volumes:
+      - /opt/mediaserver/config/overseerr:/config
+    ports:
+      - 5055:5055
+    restart: unless-stopped
+    depends_on:
+      - plex
+      - radarr
+      - sonarr
+    networks:
+      - mediaserver
+
+networks:
+  mediaserver:
+    driver: bridge
